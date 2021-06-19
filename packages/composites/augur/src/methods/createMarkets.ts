@@ -64,7 +64,7 @@ export const execute: ExecuteWithConfig<Config> = async (input, config) => {
       continue
     }
 
-    if((event.event_status_detail || "").toUpperCase() === 'TBD') {
+    if((event.score.event_status_detail || "").toUpperCase() === 'TBD') {
       skipTBD++
       continue
     }
