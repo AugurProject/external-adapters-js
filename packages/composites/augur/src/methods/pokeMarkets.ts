@@ -39,7 +39,6 @@ class RoundManagement {
 async function getNextWeekResolutionTimestamp(contract: ethers.Contract): Promise<number> {
   const contractNextResolutionTime = await contract.nextResolutionTime()
   const now = DateTime.now().setZone('America/New_York').toSeconds()
-
   if (contractNextResolutionTime > now) {
     Logger.warn(`Augur: Next resolution time is in the future`)
 
@@ -88,7 +87,7 @@ export async function execute(
   const jobRunID = input.id
 
   const contractAddress = validator.validated.data.contractAddress
-  const contract = new ethers.Contract(contractAddress, CRYPTO_ABI, config.wallet)
+  const contract = new ethers.Contract(contractAddress, CRYPTO_ABI, config.signer)
 
   await pokeMarkets(contract, context, config)
 
@@ -101,13 +100,13 @@ async function fetchResolutionRoundIds(
   _: AdapterContext,
   config: Config,
 ): Promise<RoundDataForCoin[]> {
-  const coins: Coin[] = await contract.getCoins()
+  const coins: Coin[] = (await contract.getCoins()).slice(1)
   return Promise.all(
     coins.map(async (coin, index) => {
       const aggregator = new ethers.Contract(
         coin.priceFeed,
         AggregatorV3InterfaceABI,
-        config.wallet,
+        config.signer,
       )
 
       // Here we are going to walk backward through rounds to make sure that
@@ -123,11 +122,18 @@ async function fetchResolutionRoundIds(
       }
 
       let round = RoundManagement.decode(roundData.roundId)
-      while (roundData.updatedAt >= resolutionTime) {
-        roundData = await aggregator.getRoundData(round.prevRound().id)
-        round = RoundManagement.decode(roundData.roundId)
+      // resolution time = 0 => return last round;
+      if (resolutionTime == 0) {
+        return {
+          coinId: index + 1,
+          roundId: round.id,
+        }
       }
 
+      while (roundData.updatedAt >= resolutionTime) {
+        roundData = await aggregator.getRoundData(round.prevRound().id)
+        round = round.prevRound()
+      }
       return {
         coinId: index + 1, // add one because getCoins excludes the 0th Coin, which is a placeholder for "no coin"
         roundId: round.nextRound().id, // next round because we iterated one past the desired round
@@ -148,13 +154,13 @@ async function createAndResolveMarkets(
     roundDataForCoins.map((x) => x.roundId),
   )
 
-  const nonce = await config.wallet.getTransactionCount()
+  const nonce = await config.signer.getTransactionCount()
 
   try {
     await contract.createAndResolveMarkets(roundIds, nextWeek, { nonce })
-    Logger.log(`Augur: createAndResolveMarkets -- success`)
+    Logger.debug(`Augur: createAndResolveMarkets -- success`)
   } catch (e) {
-    Logger.log(`Augur: createAndResolveMarkets -- failure`)
+    Logger.debug(`Augur: createAndResolveMarkets -- failure`)
     Logger.error(e)
   }
 }

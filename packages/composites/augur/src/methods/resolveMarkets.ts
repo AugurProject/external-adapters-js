@@ -60,7 +60,7 @@ const resolveTeam = async (
   const contract = new ethers.Contract(
     contractAddress,
     sport === 'nfl' ? NFL_ABI : TEAM_ABI,
-    config.wallet,
+    config.signer,
   )
 
   let getEvent: Execute
@@ -109,7 +109,7 @@ const resolveTeam = async (
   let failed = 0
   let succeeded = 0
 
-  let nonce = await config.wallet.getTransactionCount()
+  let nonce = await config.signer.getTransactionCount()
   for (let i = 0; i < eventReadyToResolve.length; i++) {
     Logger.info(`Augur: resolving event "${eventReadyToResolve[i].id}"`)
 
@@ -150,7 +150,7 @@ const resolveFights = async (
   context: AdapterContext,
   config: Config,
 ) => {
-  const contract = new ethers.Contract(contractAddress, mmaABI, config.wallet)
+  const contract = new ethers.Contract(contractAddress, mmaABI, config.signer)
 
   let getEvent: Execute
   if (theRundown.SPORTS_SUPPORTED.includes(sport)) {
@@ -189,7 +189,7 @@ const resolveFights = async (
   let failed = 0
   let succeeded = 0
 
-  let nonce = await config.wallet.getTransactionCount()
+  let nonce = await config.signer.getTransactionCount()
   for (const fight of eventReadyToResolve) {
     Logger.info(`Augur: resolving event "${fight.id.toString()}"`)
 

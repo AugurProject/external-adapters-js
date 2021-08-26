@@ -65,8 +65,9 @@ const createTeam = async (
   const contract = new ethers.Contract(
     contractAddress,
     sport === 'nfl' ? NFL_ABI : TEAM_ABI,
-    config.wallet,
+    config.signer,
   )
+
   const req = {
     id: jobRunID,
     data: {
@@ -93,7 +94,7 @@ const createTeam = async (
   let failed = 0
   let succeeded = 0
 
-  let nonce = await config.wallet.getTransactionCount()
+  let nonce = await config.signer.getTransactionCount()
   for (let i = 0; i < events.length; i++) {
     const event = events[i]
     const payload =
@@ -149,7 +150,7 @@ const createFighter = async (
   context: AdapterContext,
   config: Config,
 ) => {
-  const contract = new ethers.Contract(contractAddress, mmaABI, config.wallet)
+  const contract = new ethers.Contract(contractAddress, mmaABI, config.signer)
 
   const req = {
     id: jobRunID,
@@ -176,7 +177,7 @@ const createFighter = async (
   let failed = 0
   let succeeded = 0
 
-  let nonce = await config.wallet.getTransactionCount()
+  let nonce = await config.signer.getTransactionCount()
   for (let i = 0; i < events.length; i++) {
     const event = events[i]
     const payload = [
