@@ -4,8 +4,8 @@ import { ethers, BigNumber, BigNumberish } from 'ethers'
 import { DateTime } from 'luxon'
 
 import { Config } from '../config'
-import { CRYPTO_ABI } from './index'
-import AggregatorV3InterfaceABI from '../abis/AggregatorV3Interface.json'
+import { getContract } from './index'
+import { AggregatorV3Interface__factory, CryptoMarketFactory } from '../typechain'
 
 class RoundManagement {
   readonly phase: BigNumber
@@ -36,10 +36,10 @@ class RoundManagement {
   }
 }
 
-async function getNextWeekResolutionTimestamp(contract: ethers.Contract): Promise<number> {
+async function getNextWeekResolutionTimestamp(contract: CryptoMarketFactory): Promise<number> {
   const contractNextResolutionTime = await contract.nextResolutionTime()
   const now = DateTime.now().setZone('America/New_York').toSeconds()
-  if (contractNextResolutionTime > now) {
+  if (contractNextResolutionTime.gt(now)) {
     Logger.warn(`Augur: Next resolution time is in the future`)
 
     return 0
@@ -86,8 +86,11 @@ export async function execute(
 
   const jobRunID = input.id
 
-  const contractAddress = validator.validated.data.contractAddress
-  const contract = new ethers.Contract(contractAddress, CRYPTO_ABI, config.signer)
+  const contract = (getContract(
+    'crypto',
+    validator.validated.data.contractAddress,
+    config.signer,
+  ) as unknown) as CryptoMarketFactory
 
   await pokeMarkets(contract, context, config)
 
@@ -96,18 +99,14 @@ export async function execute(
 
 async function fetchResolutionRoundIds(
   resolutionTime: number,
-  contract: ethers.Contract,
+  contract: CryptoMarketFactory,
   _: AdapterContext,
   config: Config,
 ): Promise<RoundDataForCoin[]> {
   const coins: Coin[] = (await contract.getCoins()).slice(1)
   return Promise.all(
     coins.map(async (coin, index) => {
-      const aggregator = new ethers.Contract(
-        coin.priceFeed,
-        AggregatorV3InterfaceABI,
-        config.signer,
-      )
+      const aggregator = AggregatorV3Interface__factory.connect(coin.priceFeed, config.signer)
 
       // Here we are going to walk backward through rounds to make sure that
       // we pick the *first* update after the passed-in resolutionTime
@@ -165,7 +164,7 @@ async function createAndResolveMarkets(
   }
 }
 
-async function pokeMarkets(contract: ethers.Contract, context: AdapterContext, config: Config) {
+async function pokeMarkets(contract: CryptoMarketFactory, context: AdapterContext, config: Config) {
   const resolutionTime: BigNumber = await contract.nextResolutionTime()
   const nextResolutionTime = await getNextWeekResolutionTimestamp(contract)
   if (nextResolutionTime > 0) {

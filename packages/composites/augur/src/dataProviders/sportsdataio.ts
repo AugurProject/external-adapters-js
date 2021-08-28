@@ -330,8 +330,11 @@ export const createTeam: Execute = async (input, context) => {
       continue
     }
 
-    const [headToHeadMarket, spreadMarket, totalScoreMarket]: [BigNumber, BigNumber, BigNumber] =
-      await contract.getEventMarkets(event.GameID)
+    const [headToHeadMarket, spreadMarket, totalScoreMarket]: [
+      BigNumber,
+      BigNumber,
+      BigNumber,
+    ] = await contract.getEventMarkets(event.GameID)
     const canCreate =
       headToHeadMarket.isZero() ||
       (spreadMarket.isZero() && false) ||
@@ -580,6 +583,8 @@ export const resolveTeam: Execute = async (input, context) => {
   const resolveEvent: ResolveTeam = {
     id: BigNumber.from(event.GameID),
     status,
+    homeTeamId: event.HomeTeamID || 0,
+    awayTeamId: event.AwayTeamID || 0,
     homeScore: event.HomeScore || 0,
     awayScore: event.AwayScore || 0,
   }

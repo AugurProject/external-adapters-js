@@ -1470,7 +1470,10 @@ __metadata:
     "@chainlink/sportsdataio-adapter": ^0.1.0
     "@chainlink/therundown-adapter": ^0.1.0
     "@chainlink/types": 0.0.1
+    "@ethersproject/abi": ^5.4.1
+    "@ethersproject/bytes": ^5.4.0
     "@ethersproject/constants": ^5.4.0
+    "@ethersproject/providers": ^5.4.5
     "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@0.3.0-beta.10"
     "@openzeppelin/contracts": 3.4.0-solc-0.7
     "@types/chai": ^4.2.21
@@ -3747,6 +3750,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ethersproject/abi@npm:^5.4.1":
+  version: 5.4.1
+  resolution: "@ethersproject/abi@npm:5.4.1"
+  dependencies:
+    "@ethersproject/address": ^5.4.0
+    "@ethersproject/bignumber": ^5.4.0
+    "@ethersproject/bytes": ^5.4.0
+    "@ethersproject/constants": ^5.4.0
+    "@ethersproject/hash": ^5.4.0
+    "@ethersproject/keccak256": ^5.4.0
+    "@ethersproject/logger": ^5.4.0
+    "@ethersproject/properties": ^5.4.0
+    "@ethersproject/strings": ^5.4.0
+  checksum: 75460eee1d4eeaa438a43a003343dfcd2a8c3b1b7e0d8a3dd31c9200375d52daeea7022622696d1fec54913ec3b72423057236677907793ec134d2601a061fec
+  languageName: node
+  linkType: hard
+
 "@ethersproject/abstract-provider@npm:5.4.1, @ethersproject/abstract-provider@npm:^5.4.0":
   version: 5.4.1
   resolution: "@ethersproject/abstract-provider@npm:5.4.1"
@@ -3980,6 +4000,33 @@ __metadata:
     bech32: 1.1.4
     ws: 7.4.6
   checksum: c0bc3c36aa17ed6c2309b8bccc99ef53f7a21e0d601dc4adbff1c979dc9d7782c5411e95d1c8bdcbf90a2bad6f20b6012757b7270fba2177588a23067322669c
+  languageName: node
+  linkType: hard
+
+"@ethersproject/providers@npm:^5.4.5":
+  version: 5.4.5
+  resolution: "@ethersproject/providers@npm:5.4.5"
+  dependencies:
+    "@ethersproject/abstract-provider": ^5.4.0
+    "@ethersproject/abstract-signer": ^5.4.0
+    "@ethersproject/address": ^5.4.0
+    "@ethersproject/basex": ^5.4.0
+    "@ethersproject/bignumber": ^5.4.0
+    "@ethersproject/bytes": ^5.4.0
+    "@ethersproject/constants": ^5.4.0
+    "@ethersproject/hash": ^5.4.0
+    "@ethersproject/logger": ^5.4.0
+    "@ethersproject/networks": ^5.4.0
+    "@ethersproject/properties": ^5.4.0
+    "@ethersproject/random": ^5.4.0
+    "@ethersproject/rlp": ^5.4.0
+    "@ethersproject/sha2": ^5.4.0
+    "@ethersproject/strings": ^5.4.0
+    "@ethersproject/transactions": ^5.4.0
+    "@ethersproject/web": ^5.4.0
+    bech32: 1.1.4
+    ws: 7.4.6
+  checksum: 09692fb053453c2a7e5d566e42d4542cd4225ea829d9177b6227c09559b11c041b4be5958d550ece3fb1d4677e67e45a4604604fd9f5d1b8dcbd04b8c259c186
   languageName: node
   linkType: hard
 

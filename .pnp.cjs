@@ -3324,7 +3324,10 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
             ["@chainlink/sportsdataio-adapter", "workspace:packages/sources/sportsdataio"],
             ["@chainlink/therundown-adapter", "workspace:packages/sources/therundown"],
             ["@chainlink/types", "workspace:packages/core/types/@chainlink"],
+            ["@ethersproject/abi", "npm:5.4.1"],
+            ["@ethersproject/bytes", "npm:5.4.0"],
             ["@ethersproject/constants", "npm:5.4.0"],
+            ["@ethersproject/providers", "npm:5.4.5"],
             ["@nomiclabs/hardhat-ethers", [
               "hardhat-deploy-ethers",
               "virtual:894c7069f8aed076d3839d4f435fd974974296cafbca8e3355fff9d622c82029c9e05eeefeb9e2521cd2b7d885c2414fbaa802b29fb061bade185d5a82c32171#npm:0.3.0-beta.10"
@@ -5866,6 +5869,22 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
             ["@ethersproject/strings", "npm:5.4.0"]
           ],
           "linkType": "HARD",
+        }],
+        ["npm:5.4.1", {
+          "packageLocation": "./.yarn/cache/@ethersproject-abi-npm-5.4.1-ca047ed2ce-75460eee1d.zip/node_modules/@ethersproject/abi/",
+          "packageDependencies": [
+            ["@ethersproject/abi", "npm:5.4.1"],
+            ["@ethersproject/address", "npm:5.4.0"],
+            ["@ethersproject/bignumber", "npm:5.4.1"],
+            ["@ethersproject/bytes", "npm:5.4.0"],
+            ["@ethersproject/constants", "npm:5.4.0"],
+            ["@ethersproject/hash", "npm:5.4.0"],
+            ["@ethersproject/keccak256", "npm:5.4.0"],
+            ["@ethersproject/logger", "npm:5.4.0"],
+            ["@ethersproject/properties", "npm:5.4.0"],
+            ["@ethersproject/strings", "npm:5.4.0"]
+          ],
+          "linkType": "HARD",
         }]
       ]],
       ["@ethersproject/abstract-provider", [
@@ -6100,6 +6119,32 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
           "packageLocation": "./.yarn/cache/@ethersproject-providers-npm-5.4.4-de8f9beaf1-c0bc3c36aa.zip/node_modules/@ethersproject/providers/",
           "packageDependencies": [
             ["@ethersproject/providers", "npm:5.4.4"],
+            ["@ethersproject/abstract-provider", "npm:5.4.1"],
+            ["@ethersproject/abstract-signer", "npm:5.4.1"],
+            ["@ethersproject/address", "npm:5.4.0"],
+            ["@ethersproject/basex", "npm:5.4.0"],
+            ["@ethersproject/bignumber", "npm:5.4.1"],
+            ["@ethersproject/bytes", "npm:5.4.0"],
+            ["@ethersproject/constants", "npm:5.4.0"],
+            ["@ethersproject/hash", "npm:5.4.0"],
+            ["@ethersproject/logger", "npm:5.4.0"],
+            ["@ethersproject/networks", "npm:5.4.2"],
+            ["@ethersproject/properties", "npm:5.4.0"],
+            ["@ethersproject/random", "npm:5.4.0"],
+            ["@ethersproject/rlp", "npm:5.4.0"],
+            ["@ethersproject/sha2", "npm:5.4.0"],
+            ["@ethersproject/strings", "npm:5.4.0"],
+            ["@ethersproject/transactions", "npm:5.4.0"],
+            ["@ethersproject/web", "npm:5.4.0"],
+            ["bech32", "npm:1.1.4"],
+            ["ws", "virtual:de8f9beaf11f02e109c64a54badd83cfb7f41441e8d16c18f24f6c07db8b448bd606f7eb04c2272baafb0eb445bf7820e775d2ba18aef5d31e4c7752a394fb90#npm:7.4.6"]
+          ],
+          "linkType": "HARD",
+        }],
+        ["npm:5.4.5", {
+          "packageLocation": "./.yarn/cache/@ethersproject-providers-npm-5.4.5-f8e286d84f-09692fb053.zip/node_modules/@ethersproject/providers/",
+          "packageDependencies": [
+            ["@ethersproject/providers", "npm:5.4.5"],
             ["@ethersproject/abstract-provider", "npm:5.4.1"],
             ["@ethersproject/abstract-signer", "npm:5.4.1"],
             ["@ethersproject/address", "npm:5.4.0"],
