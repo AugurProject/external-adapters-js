@@ -1,6 +1,7 @@
 import { ethers } from 'ethers'
 import {
   CryptoMarketFactory,
+  CryptoMarketFactory__factory,
   MLBMarketFactory,
   MLBMarketFactory__factory,
   MMAMarketFactory,
@@ -85,7 +86,8 @@ export function getContract(
   if (identifier === 'nba') return NBAMarketFactory__factory.connect(address, signer)
   if (identifier === 'mlb') return MLBMarketFactory__factory.connect(address, signer)
   if (identifier === 'mma') return MLBMarketFactory__factory.connect(address, signer)
-  else throw Error(`Unsupported sport ${identifier}`)
+  if (identifier === 'crypto') return CryptoMarketFactory__factory.connect(address, signer)
+  else throw Error(`Unsupported identifier ${identifier}`)
 }
 
 export function isNFL(contract: ethers.Contract, identifier: string): contract is NFLMarketFactory {
