@@ -28,10 +28,10 @@ describe('createMarket execute', () => {
       mockDataServer = server.listen(3000)
 
       // deploy smart contract
-      await deployments.fixture(['MMALinkMarketFactory'])
+      await deployments.fixture(['Sports'])
 
       // fetch the MMA market factory.
-      mmaMarketFactory = await ethers.getContract('MMALinkMarketFactory')
+      mmaMarketFactory = await ethers.getContract('MMAMarketFactory')
 
       const { deployer } = await getNamedAccounts()
       const signer = await ethers.getSigner(deployer)
