@@ -33,7 +33,7 @@ interface NFLEvent {
   OverUnder: number | null
 }
 
-interface TeamSchedule {
+export interface TeamSchedule {
   Date: string
   GameID: number
   AwayTeamName: string
@@ -346,7 +346,7 @@ export const createTeam: Execute = async (input, context) => {
       awayTeamName: event.AwayTeamName,
       awayTeamId: event.AwayTeamID,
       startTime,
-      homeSpread: event.PointSpread || 0,
+      homeSpread: calcHomeSpread(event),
       totalScore: event.OverUnder || 0,
       createSpread: event.PointSpread !== null,
       createTotalScore: event.OverUnder !== null,
@@ -362,6 +362,31 @@ export const createTeam: Execute = async (input, context) => {
   return Requester.success(input.id, {
     data: { result: createEvents },
   })
+}
+
+export function calcHomeSpread(event: TeamSchedule): number {
+  const { HomeTeamMoneyLine, AwayTeamMoneyLine, PointSpread } = event
+  if (HomeTeamMoneyLine === null) return 0
+  if (AwayTeamMoneyLine === null) return 0
+  if (PointSpread === null) return 0
+
+  // If one is negative then it's favored.
+  // If both are negative then the most-negative is favored.
+  // Ergo, the smallest is favored.
+  const homeFavored = HomeTeamMoneyLine < AwayTeamMoneyLine
+
+  // Here we canculate home spread specifically, which should be positive is home is favored.
+  return homeFavored ? ensurePositive(PointSpread) : ensureNegative(PointSpread)
+}
+
+export function ensureNegative(n: number): number {
+  if (n > 0) n = -n
+  return n
+}
+
+export function ensurePositive(n: number): number {
+  if (n < 0) n = -n
+  return n
 }
 
 interface FightSchedule {
