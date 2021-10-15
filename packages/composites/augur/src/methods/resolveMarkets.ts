@@ -1,12 +1,14 @@
 import { Logger, Requester, Validator } from '@chainlink/ea-bootstrap'
 import { ExecuteWithConfig, Execute, AdapterContext } from '@chainlink/types'
 import { Config } from '../config'
-import { TEAM_SPORTS, FIGHTER_SPORTS, getContract, isMMA, isContractIdentifier } from './index'
+import { TEAM_SPORTS, FIGHTER_SPORTS, getContract, isMMA, isContractIdentifier, isCrypto } from './index'
 import { ethers } from 'ethers'
 import { theRundown, sportsdataio } from '../dataProviders'
+import { SportsFetcher__factory, SportsFetcher } from '../typechain'
 
 const resolveParams = {
   contractAddress: true,
+  fetcherAddress: true,
   sport: true,
 }
 
@@ -43,11 +45,15 @@ export const execute: ExecuteWithConfig<Config> = async (input, context, config)
 
   const sport = validator.validated.data.sport.toLowerCase()
   const contractAddress = validator.validated.data.contractAddress
+  const fetcher = SportsFetcher__factory.connect(
+    validator.validated.data.fetcherAddress,
+    config.signer,
+  )
 
   if (TEAM_SPORTS.includes(sport)) {
-    return await resolveTeam(input.id, sport, contractAddress, context, config)
+    return await resolveTeam(input.id, sport, contractAddress, fetcher context, config)
   } else if (FIGHTER_SPORTS.includes(sport)) {
-    return await resolveFights(input.id, sport, contractAddress, context, config)
+    return await resolveFights(input.id, sport, contractAddress, fetcher, context, config)
   } else {
     throw Error(`Unable to identify sport "${sport}"`)
   }
@@ -57,11 +63,14 @@ const resolveTeam = async (
   jobRunID: string,
   sport: string,
   contractAddress: string,
+  fetcher: SportsFetcher,
   context: AdapterContext,
   config: Config,
 ) => {
   if (!isContractIdentifier(sport)) throw Error(`Unsupported sport ${sport}`)
   const contract = getContract(sport, contractAddress, config.signer)
+  
+  if (isCrypto(contract, sport)) return; // impossible but needed for typing
 
   let getEvent: Execute
   if (theRundown.SPORTS_SUPPORTED.includes(sport)) {
@@ -72,7 +81,7 @@ const resolveTeam = async (
     throw Error(`Unknown data provider for sport ${sport}`)
   }
 
-  const eventIDs: ethers.BigNumber[] = await contract.listResolvableEvents()
+  const eventIDs: ethers.BigNumber[] = await fetcher.listResolvableEvents(contractAddress, 0, 500)
   const events: ResolveTeam[] = []
   for (const eventId of eventIDs) {
     try {
@@ -149,6 +158,7 @@ const resolveFights = async (
   jobRunID: string,
   sport: string,
   contractAddress: string,
+  fetcher: SportsFetcher,
   context: AdapterContext,
   config: Config,
 ) => {
@@ -166,7 +176,7 @@ const resolveFights = async (
   }
 
   Logger.debug('Augur: Getting list of potentially resolvable events')
-  const eventIDs: ethers.BigNumber[] = await contract.listResolvableEvents()
+  const eventIDs: ethers.BigNumber[] = await fetcher.listResolvableEvents(contractAddress, 0, 500)
   Logger.debug(`Augur: Found ${eventIDs.length} potentially resolvable events`)
   const events: ResolveFight[] = []
   for (const eventId of eventIDs) {
