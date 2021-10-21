@@ -92,11 +92,11 @@ export const create: Execute = async (input, context) => {
 
   const events = []
   Logger.debug(`Augur theRundown: Fetching data from therundown for ${sport} (${sportId})`)
-  for (let i = 0; i < daysInAdvance; i++) {
-    params.data.date = addDays(params.data.date, 1)
+  for (let i = 0; i <= daysInAdvance; i++) {
     Logger.debug(`Augur theRundown: Fetching data for date ${params.data.date}`)
     const response = await theRundownExec(params, context)
     events.push(...(response.result as TheRundownEvent[]))
+    params.data.date = addDays(params.data.date, 1)
   }
 
   Logger.debug(`Augur theRundown: Got ${events.length} events from data provider`)

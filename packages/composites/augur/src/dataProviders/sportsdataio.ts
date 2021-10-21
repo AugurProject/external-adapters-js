@@ -385,6 +385,7 @@ interface Fight {
   ResultClock: number
   ResultRound: number
   Status: string
+  CardSegment?: string
 }
 
 interface Fighter {
@@ -451,7 +452,7 @@ export const createFighter: Execute = async (input, context) => {
 
   const sportsdataioExec = Sportsdataio.makeExecute(Sportsdataio.makeConfig(Sportsdataio.NAME))
 
-  const fights: Fight[] = []
+  let fights: Fight[] = []
 
   const leagues = ['UFC']
   for (const league of leagues) {
@@ -471,6 +472,34 @@ export const createFighter: Execute = async (input, context) => {
       fights.push(...eventFights)
     }
   }
+
+  fights = await Promise.all(
+    fights.filter(async (fight) => {
+      const { CardSegment } = await getFight(
+        input.id,
+        sport,
+        fight.FightId,
+        sportsdataioExec,
+        context,
+      )
+      fight.CardSegment = CardSegment
+      return fight
+    }),
+  )
+
+  Logger.debug('Filtering out fights that are not main card')
+  const fightCountIncludingNonMainCard = fights.length
+  fights = fights.filter((fight) => {
+    const isMainCard = fight.CardSegment === 'Main Card'
+    if (!isMainCard)
+      Logger.debug(
+        `Filtered out non-maincard fight ${fight.FightId}. CardSegment=${fight.CardSegment}`,
+      )
+    return isMainCard
+  })
+  Logger.debug(
+    `Filtered out ${fightCountIncludingNonMainCard - fights.length} fights for not being main card`,
+  )
 
   Logger.debug(`Augur sportsdataio: Got ${fights.length} fights from data provider`)
   let skipNullDate = 0,
