@@ -8,7 +8,7 @@ import { Contract, Signer, BigNumber } from 'ethers'
 import { Config } from '../../src/config'
 import { expect } from './chai-setup'
 
-describe.only('NFL createMarket execute', () => {
+describe('NFL createMarket execute', () => {
   const JOB_ID = '1'
   const DATE = '2021-08-05T00:00:00'
   const EVENT = {

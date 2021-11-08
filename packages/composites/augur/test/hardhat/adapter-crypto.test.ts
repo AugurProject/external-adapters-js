@@ -1,45 +1,12 @@
-import { RoundManagement, CryptoMarketFactoryV3 } from '@augurproject/smart'
 import { Logger, Requester } from '@chainlink/ea-bootstrap'
-import { BigNumber, Contract } from 'ethers'
+import { BigNumber } from 'ethers'
 import { AdapterResponse } from '@chainlink/types'
 import { ethers, deployments, getNamedAccounts } from 'hardhat'
 import { expect, spy } from './chai-setup'
 import { execute } from '../../src/adapter'
-import { Config } from '../../src/config'
+import { CryptoCurrencyMarketFactoryV3 } from '../../src/typechain'
+import { RoundManagement, Coin } from '../../src/methods/pokeMarkets'
 import { DateTime, Settings } from 'luxon'
-
-async function addRounds(
-  factory: CryptoMarketFactoryV3,
-  maxRounds: number,
-  skipFirstRounds = 0,
-): Promise<DateTime> {
-  const coins = await factory.getCoins()
-  const start = DateTime.fromObject({
-    year: 2021,
-    month: 8,
-    day: 1,
-    hour: 16,
-    millisecond: 10, // setting this in purpose to make sure we're handling seconds properly
-    zone: 'America/New_York',
-  })
-
-  for (let coin of coins.slice(1)) {
-    let roundId = 1
-    let phaseId = 1
-    let currentRound = new RoundManagement(phaseId, roundId)
-    const fakePrice = await ethers.getContract(`PriceFeed${coin.name}`)
-
-    for (; roundId < maxRounds; ++roundId) {
-      if (roundId >= skipFirstRounds) {
-        const roundDate = BigNumber.from(Math.floor(start.plus({ days: roundId }).toSeconds()))
-        await fakePrice.addRound(currentRound.id, roundId, roundDate, roundDate, roundId)
-      }
-      currentRound = currentRound.nextRound()
-    }
-  }
-
-  return start.plus({ days: maxRounds - 1 })
-}
 
 describe('Augur Crypto Adapter', () => {
   let poke: (contractAddress: string) => Promise<AdapterResponse>
@@ -73,48 +40,52 @@ describe('Augur Crypto Adapter', () => {
   })
 
   describe('add initial round', async () => {
-    let factory: CryptoMarketFactoryV3
+    let factory: CryptoCurrencyMarketFactoryV3
     let coinCount: number
     beforeEach('factories', async () => {
-      factory = (await ethers.getContract('CryptoMarketFactoryV3')) as CryptoMarketFactoryV3
-      const coins = await factory.getCoins()
-      coinCount = coins.length - 1
+      factory = (await ethers.getContract(
+        'CryptoCurrencyMarketFactoryV3',
+      )) as CryptoCurrencyMarketFactoryV3
+      const coins = (await factory.getCoins()).slice(1)
+      coinCount = coins.length
       // mock luxon datetime
       Settings.now = () => new Date('August 1, 2021').valueOf()
     })
 
-    beforeEach(() => {
-      spy.on(Logger, ['warn'])
+    beforeEach(() => spy.on(Logger, ['warn']))
+    afterEach(() => spy.restore())
+
+    beforeEach(async () => addRounds(factory, 1))
+
+    beforeEach('initial poke', () => poke(factory.address))
+
+    const nextResolutionTime = DateTime.fromObject({
+      year: 2021,
+      month: 8,
+      day: 6,
+      hour: 16,
+      zone: 'America/New_York',
     })
 
-    afterEach(() => {
-      spy.restore()
+    it('coin count is correct', () => expect(coinCount).to.equal(6))
+    it('resolution time is correct', async () => {
+      const coin: Coin = await factory.getCoin(1)
+      const market = await factory.getMarketDetails(coin.currentMarket)
+      expect(market.resolutionTime).to.equal(BigNumber.from(nextResolutionTime.toSeconds()))
     })
+    it('one market per coin', async () =>
+      expect(await factory.marketCount()).to.equal(1 + coinCount))
 
-    beforeEach(async () => {
-      await addRounds(factory, 1)
-    })
-
-    it('creates initial markets on first poke', async () => {
-      expect(coinCount).to.be.equal(6)
-      await poke(factory.address)
-      let nextResolutionTime = DateTime.fromObject({
-        year: 2021,
-        month: 8,
-        day: 6,
-        hour: 16,
-        zone: 'America/New_York',
+    describe('poke before resolution time passes', () => {
+      beforeEach('early poke', () => poke(factory.address))
+      it('one market per coin', async () =>
+        expect(await factory.marketCount()).to.equal(1 + coinCount))
+      it('warning emitted', () => {
+        const time = nextResolutionTime.toSeconds().toString()
+        const msg = `Augur: Next resolution time ${time} is in the future`
+        expect(Logger.warn).to.have.been.called.always.with(msg)
+        expect(Logger.warn).to.have.been.called.exactly(coinCount)
       })
-      expect(await factory.nextResolutionTime()).to.equal(
-        BigNumber.from(nextResolutionTime.toSeconds()),
-      )
-
-      // Should be one market for each coin after the 1st run
-      expect(await factory.marketCount()).to.equal(1 + coinCount * 1)
-
-      await poke(factory.address)
-      expect(await factory.marketCount()).to.equal(1 + coinCount * 1)
-      expect(Logger.warn).to.have.been.called.with('Augur: Next resolution time is in the future')
     })
 
     describe('progressing through rounds', function () {
@@ -129,8 +100,11 @@ describe('Augur Crypto Adapter', () => {
         const now = roundUpdatedAt.plus({ minutes: 15 }).toMillis()
         spy.on(Settings, 'now', () => now)
         await poke(factory.address)
-        expect(Logger.warn).to.have.been.called.with('Augur: Next resolution time is in the future')
-        expect(await factory.marketCount()).to.equal(1 + coinCount * 1)
+        const time = nextResolutionTime.toSeconds().toString()
+        const msg = `Augur: Next resolution time ${time} is in the future`
+        expect(Logger.warn).to.have.been.called.always.with(msg)
+        expect(Logger.warn).to.have.been.called.exactly(coinCount * 2)
+        expect(await factory.marketCount()).to.equal(1 + coinCount)
       })
 
       it('resolves old round and creates a new round after 6 days', async () => {
@@ -147,10 +121,43 @@ describe('Augur Crypto Adapter', () => {
           hour: 16,
           zone: 'America/New_York',
         })
-        expect(await factory.nextResolutionTime()).to.equal(
-          BigNumber.from(nextResolutionTime.toSeconds()),
-        )
+        const coin: Coin = await factory.getCoin(1)
+        const market = await factory.getMarketDetails(coin.currentMarket)
+        expect(market.resolutionTime).to.equal(BigNumber.from(nextResolutionTime.toSeconds()))
       })
     })
   })
 })
+
+async function addRounds(
+  factory: CryptoCurrencyMarketFactoryV3,
+  maxRounds: number,
+  skipFirstRounds = 0,
+): Promise<DateTime> {
+  const coins: Coin[] = (await factory.getCoins()).slice(1)
+  const start = DateTime.fromObject({
+    year: 2021,
+    month: 8,
+    day: 1,
+    hour: 16,
+    millisecond: 10, // setting this in purpose to make sure we're handling seconds properly
+    zone: 'America/New_York',
+  })
+
+  for (const coin of coins) {
+    let roundId = 1
+    let phaseId = 1
+    let currentRound = new RoundManagement(phaseId, roundId)
+    const fakePrice = await ethers.getContract(`PriceFeed${coin.name}`)
+
+    for (; roundId < maxRounds; ++roundId) {
+      if (roundId >= skipFirstRounds) {
+        const roundDate = BigNumber.from(Math.floor(start.plus({ days: roundId }).toSeconds()))
+        await fakePrice.addRound(currentRound.id, roundId, roundDate, roundDate, roundId)
+      }
+      currentRound = currentRound.nextRound()
+    }
+  }
+
+  return start.plus({ days: maxRounds - 1 })
+}

@@ -1,13 +1,153 @@
 import { Logger, Requester, Validator } from '@chainlink/ea-bootstrap'
 import { AdapterRequest, AdapterResponse, AdapterContext } from '@chainlink/types'
-import { ethers, BigNumber, BigNumberish } from 'ethers'
+import { BigNumber, BigNumberish, Signer } from 'ethers'
 import { DateTime } from 'luxon'
 
 import { Config } from '../config'
 import { getContract } from './index'
-import { AggregatorV3Interface__factory, CryptoMarketFactoryV3 } from '../typechain'
+import { AggregatorV3Interface__factory, CryptoCurrencyMarketFactoryV3 } from '../typechain'
 
-class RoundManagement {
+const pokeParams = {
+  contractAddress: true,
+}
+
+export async function execute(
+  input: AdapterRequest,
+  _context: AdapterContext,
+  config: Config,
+): Promise<AdapterResponse> {
+  const validator = new Validator(input, pokeParams)
+  if (validator.error) throw validator.error
+
+  const jobRunID = input.id
+
+  const contract = getContract(
+    'crypto',
+    validator.validated.data.contractAddress,
+    config.signer,
+  ) as CryptoCurrencyMarketFactoryV3
+
+  const pokeArgs = await buildPokeArgs(contract, config.signer)
+  await pokeMarkets(config.signer, contract, pokeArgs)
+
+  return Requester.success(jobRunID, {})
+}
+
+type PokeArgs = {
+  coinIndex: BigNumberish
+  nextResolutionTime: BigNumberish
+  roundId: BigNumber
+}
+
+async function buildPokeArgs(
+  contract: CryptoCurrencyMarketFactoryV3,
+  signer: Signer,
+): Promise<PokeArgs[]> {
+  const args: PokeArgs[] = []
+  const coins: Coin[] = (await contract.getCoins()).slice(1)
+  for (let i = 0; i < coins.length; i++) {
+    const coinIndex = i + 1
+    const coin = coins[i]
+    const { resolutionTime } = await contract.getMarketDetails(coin.currentMarket)
+    const nextResolutionTime = await getNextResolutionTime(resolutionTime)
+    if (nextResolutionTime !== null) {
+      const roundId = await fetchResolutionRoundId(signer, coin, resolutionTime)
+      if (roundId !== null) {
+        args.push({ coinIndex, nextResolutionTime, roundId })
+      }
+    }
+  }
+
+  return args
+}
+
+async function pokeMarkets(
+  signer: Signer,
+  contract: CryptoCurrencyMarketFactoryV3,
+  args: PokeArgs[],
+) {
+  Logger.debug(`Augur: Prepared to create ${args.length} markets`)
+
+  let failed = 0
+  let succeeded = 0
+
+  let nonce = await signer.getTransactionCount()
+  for (const arg of args) {
+    try {
+      const tx = await contract.pokeCoin(arg.coinIndex, arg.nextResolutionTime, arg.roundId, {
+        nonce,
+      })
+      Logger.debug(`Created tx: ${tx.hash}`)
+      nonce++
+      succeeded++
+    } catch (e) {
+      failed++
+      Logger.error(e)
+    }
+  }
+
+  Logger.debug(`Augur: ${succeeded} created markets`)
+  Logger.debug(`Augur: ${failed} markets failed to create`)
+}
+
+async function getNextResolutionTime(resolutionTime: BigNumber): Promise<number | null> {
+  const now = Math.floor(DateTime.now().setZone('America/New_York').toSeconds())
+  if (resolutionTime.gt(now)) {
+    Logger.warn(`Augur: Next resolution time ${resolutionTime.toString()} is in the future`)
+
+    return null
+  }
+
+  return getUpcomingFriday4pmET()
+}
+
+export interface Coin {
+  name: string
+  feed: string
+  currentMarket: BigNumber
+}
+
+interface RoundData {
+  roundId: BigNumber
+  startedAt: BigNumber
+  updatedAt: BigNumber
+}
+
+async function fetchResolutionRoundId(
+  signer: Signer,
+  coin: Coin,
+  resolutionTime: BigNumber,
+): Promise<BigNumber | null> {
+  const aggregator = AggregatorV3Interface__factory.connect(coin.feed, signer)
+
+  // Here we are going to walk backward through rounds to make sure that
+  // we pick the *first* update after the passed-in resolutionTime
+  let roundData: RoundData = await aggregator.latestRoundData()
+  let round = RoundManagement.decode(roundData.roundId)
+  // resolution time = 0 => return last round;
+  if (resolutionTime.eq(0)) {
+    return round.id
+  }
+
+  if (roundData.updatedAt.lt(resolutionTime)) {
+    Logger.warn(
+      `Augur: cryptoMarkets - oracle update for ${coin.name} hasn't occured yet. Its resolution time is ${resolutionTime} but oracle was updated at ${roundData.updatedAt}`,
+    )
+    return null
+  }
+
+  while (roundData.updatedAt.gte(resolutionTime)) {
+    roundData = await aggregator.getRoundData(round.prevRound().id)
+    round = round.prevRound()
+  }
+
+  // next round because we iterated one past the desired round
+  round = round.nextRound()
+
+  return round.id
+}
+
+export class RoundManagement {
   readonly phase: BigNumber
   readonly justRound: BigNumber
 
@@ -36,148 +176,10 @@ class RoundManagement {
   }
 }
 
-async function getNextWeekResolutionTimestamp(contract: CryptoMarketFactoryV3): Promise<number> {
-  const contractNextResolutionTime = await contract.nextResolutionTime()
-  const now = Math.floor(DateTime.now().setZone('America/New_York').toSeconds())
-  if (contractNextResolutionTime.gt(now)) {
-    Logger.warn(`Augur: Next resolution time is in the future`)
-
-    return 0
-  }
-
-  return getUpcomingFriday4pmET()
-}
-
 export function getUpcomingFriday4pmET(): number {
   const nowEastern = DateTime.now().setZone('America/New_York')
   const thisWeek = nowEastern.set({ weekday: 5, hour: 16, minute: 0, second: 0, millisecond: 0 })
   const past = thisWeek.diff(nowEastern).milliseconds < 0
   const when = past ? thisWeek.plus({ week: 1 }) : thisWeek
   return Math.floor(when.toSeconds())
-}
-
-interface Coin {
-  name: string
-  priceFeed: string
-}
-
-interface RoundData {
-  roundId: BigNumberish
-  startedAt: BigNumberish
-  updatedAt: BigNumberish
-}
-
-interface RoundDataForCoin {
-  coinId: number
-  roundId: BigNumberish
-}
-
-const pokeParams = {
-  contractAddress: true,
-}
-
-export async function execute(
-  input: AdapterRequest,
-  context: AdapterContext,
-  config: Config,
-): Promise<AdapterResponse> {
-  const validator = new Validator(input, pokeParams)
-  if (validator.error) throw validator.error
-
-  const jobRunID = input.id
-
-  const contract = getContract(
-    'crypto',
-    validator.validated.data.contractAddress,
-    config.signer,
-  ) as unknown as CryptoMarketFactoryV3
-
-  await pokeMarkets(contract, context, config)
-
-  return Requester.success(jobRunID, {})
-}
-
-async function fetchResolutionRoundIds(
-  resolutionTime: number,
-  contract: CryptoMarketFactoryV3,
-  _: AdapterContext,
-  config: Config,
-): Promise<RoundDataForCoin[]> {
-  const coins: Coin[] = (await contract.getCoins()).slice(1)
-  return Promise.all(
-    coins.map(async (coin, index) => {
-      const aggregator = AggregatorV3Interface__factory.connect(coin.priceFeed, config.signer)
-
-      // Here we are going to walk backward through rounds to make sure that
-      // we pick the *first* update after the passed-in resolutionTime
-      let roundData: RoundData = await aggregator.latestRoundData()
-
-      // If any of the coins can't be resolved, don't resolve any of them we
-      // may want to change this
-      if (roundData.updatedAt < resolutionTime) {
-        throw Error(
-          `Augur: cryptoMarkets - oracle update for ${coin.name} has not occured yet, resolutionTime is ${resolutionTime} but oracle was updated at ${roundData.updatedAt}`,
-        )
-      }
-
-      let round = RoundManagement.decode(roundData.roundId)
-      // resolution time = 0 => return last round;
-      if (resolutionTime == 0) {
-        return {
-          coinId: index + 1,
-          roundId: round.id,
-        }
-      }
-
-      while (roundData.updatedAt >= resolutionTime) {
-        roundData = await aggregator.getRoundData(round.prevRound().id)
-        round = round.prevRound()
-      }
-      return {
-        coinId: index + 1, // add one because getCoins excludes the 0th Coin, which is a placeholder for "no coin"
-        roundId: round.nextRound().id, // next round because we iterated one past the desired round
-      }
-    }),
-  )
-}
-
-async function createAndResolveMarkets(
-  roundDataForCoins: RoundDataForCoin[],
-  nextWeek: number,
-  contract: ethers.Contract,
-  _: AdapterContext,
-  config: Config,
-) {
-  //     function createAndResolveMarkets(uint80[] calldata _roundIds, uint256 _nextResolutionTime) public {
-  const roundIds: BigNumberish[] = ([0] as BigNumberish[]).concat(
-    roundDataForCoins.map((x) => x.roundId),
-  )
-
-  const nonce = await config.signer.getTransactionCount()
-
-  try {
-    await contract.createAndResolveMarkets(roundIds, nextWeek, { nonce })
-    Logger.debug(`Augur: createAndResolveMarkets -- success`)
-  } catch (e) {
-    Logger.debug(`Augur: createAndResolveMarkets -- failure`)
-    Logger.error(e)
-  }
-}
-
-async function pokeMarkets(
-  contract: CryptoMarketFactoryV3,
-  context: AdapterContext,
-  config: Config,
-) {
-  const resolutionTime: BigNumber = await contract.nextResolutionTime()
-  const nextResolutionTime = await getNextWeekResolutionTimestamp(contract)
-  if (nextResolutionTime > 0) {
-    const roundIds = await fetchResolutionRoundIds(
-      resolutionTime.toNumber(),
-      contract,
-      context,
-      config,
-    )
-    await createAndResolveMarkets(roundIds, nextResolutionTime, contract, context, config)
-  }
 }
